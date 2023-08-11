@@ -21,14 +21,15 @@ import (
 	"unsafe"
 
 	pb "github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/key"
 	"github.com/tikv/client-go/metrics"
 	"github.com/tikv/client-go/retry"
 	"github.com/tikv/client-go/rpc"
 	"github.com/tikv/client-go/txnkv/kv"
+	"go.uber.org/zap"
 )
 
 // TiKVSnapshot supports read from TiKV.
@@ -118,7 +119,7 @@ func (s *TiKVSnapshot) batchGetKeysByRegions(bo *retry.Backoffer, keys [][]byte,
 	}
 	for i := 0; i < len(batches); i++ {
 		if e := <-ch; e != nil {
-			log.Debugf("snapshot batchGet failed: %v, tid: %d", e, s.ts)
+			log.Debug("snapshot batchGet failed", zap.Error(e), zap.Uint64("tid", s.ts))
 			err = e
 		}
 	}
@@ -293,12 +294,12 @@ func extractLockFromKeyErr(keyErr *pb.KeyError, defaultTTL uint64) (*Lock, error
 	}
 	if keyErr.Retryable != "" {
 		err := errors.Errorf("tikv restarts txn: %s", keyErr.GetRetryable())
-		log.Debug(err)
+		log.Debug("extractLockFromKeyErr", zap.Error(err))
 		return nil, errors.WithMessage(err, TxnRetryableMark)
 	}
 	if keyErr.Abort != "" {
 		err := errors.Errorf("tikv aborts txn: %s", keyErr.GetAbort())
-		log.Warn(err)
+		log.Warn("extractLockFromKeyErr", zap.Error(err))
 		return nil, err
 	}
 	return nil, errors.Errorf("unexpected KeyError: %s", keyErr.String())

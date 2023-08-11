@@ -16,8 +16,9 @@ package kv
 import (
 	"context"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/pingcap/log"
 	"github.com/tikv/client-go/key"
+	"go.uber.org/zap"
 )
 
 // UnionIter is the iterator on an UnionStore.
@@ -121,7 +122,7 @@ func (iter *UnionIter) updateCur(ctx context.Context) error {
 			} else {
 				// record from dirty comes first
 				if len(iter.dirtyIt.Value()) == 0 {
-					log.Warnf("[kv] delete a record not exists? k = %q", iter.dirtyIt.Key())
+					log.Warn("[kv] delete a record not exists?", zap.Any("key", iter.dirtyIt.Key()))
 					// jump over this deletion
 					if err := iter.dirtyNext(ctx); err != nil {
 						return err

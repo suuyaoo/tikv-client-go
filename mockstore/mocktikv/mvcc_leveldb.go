@@ -24,9 +24,10 @@ import (
 	"github.com/pingcap/goleveldb/leveldb/storage"
 	"github.com/pingcap/goleveldb/leveldb/util"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/codec"
+	"go.uber.org/zap"
 )
 
 // MVCCLevelDB implements the MVCCStore interface.
@@ -371,7 +372,7 @@ func (mvcc *MVCCLevelDB) Scan(startKey, endKey []byte, limit int, startTS uint64
 	iter, currKey, err := newScanIterator(mvcc.db, startKey, endKey)
 	defer iter.Release()
 	if err != nil {
-		log.Error("scan new iterator fail:", err)
+		log.Error("scan new iterator fail:", zap.Error(err))
 		return nil
 	}
 
@@ -395,7 +396,7 @@ func (mvcc *MVCCLevelDB) Scan(startKey, endKey []byte, limit int, startTS uint64
 		skip := skipDecoder{currKey}
 		ok, err = skip.Decode(iter)
 		if err != nil {
-			log.Error("seek to next key error:", err)
+			log.Error("seek to next key error:", zap.Error(err))
 			break
 		}
 		currKey = skip.currKey
@@ -420,7 +421,7 @@ func (mvcc *MVCCLevelDB) ReverseScan(startKey, endKey []byte, limit int, startTS
 	succ := iter.Last()
 	currKey, _, err := mvccDecode(iter.Key())
 	// TODO: return error.
-	log.Error(err)
+	log.Error("decode failed", zap.Error(err))
 	helper := reverseScanHelper{
 		startTS:  startTS,
 		isoLevel: isoLevel,
@@ -450,7 +451,7 @@ func (mvcc *MVCCLevelDB) ReverseScan(startKey, endKey []byte, limit int, startTS
 			helper.entry.values = append(helper.entry.values, value)
 		}
 		if err != nil {
-			log.Error("Unmarshal fail:", err)
+			log.Error("Unmarshal fail:", zap.Error(err))
 			break
 		}
 		succ = iter.Prev()
@@ -883,7 +884,7 @@ func (mvcc *MVCCLevelDB) RawPut(key, value []byte) {
 	if value == nil {
 		value = []byte{}
 	}
-	log.Error(mvcc.db.Put(key, value, nil))
+	Log(mvcc.db.Put(key, value, nil))
 }
 
 // RawBatchPut implements the RawKV interface
@@ -899,7 +900,7 @@ func (mvcc *MVCCLevelDB) RawBatchPut(keys, values [][]byte) {
 		}
 		batch.Put(key, value)
 	}
-	log.Error(mvcc.db.Write(batch, nil))
+	Log(mvcc.db.Write(batch, nil))
 }
 
 // RawGet implements the RawKV interface.
@@ -908,7 +909,7 @@ func (mvcc *MVCCLevelDB) RawGet(key []byte) []byte {
 	defer mvcc.mu.Unlock()
 
 	ret, err := mvcc.db.Get(key, nil)
-	log.Error(err)
+	Log(err)
 	return ret
 }
 
@@ -920,7 +921,7 @@ func (mvcc *MVCCLevelDB) RawBatchGet(keys [][]byte) [][]byte {
 	var values [][]byte
 	for _, key := range keys {
 		value, err := mvcc.db.Get(key, nil)
-		log.Error(err)
+		Log(err)
 		values = append(values, value)
 	}
 	return values
@@ -931,7 +932,7 @@ func (mvcc *MVCCLevelDB) RawDelete(key []byte) {
 	mvcc.mu.Lock()
 	defer mvcc.mu.Unlock()
 
-	log.Error(mvcc.db.Delete(key, nil))
+	Log(mvcc.db.Delete(key, nil))
 }
 
 // RawBatchDelete implements the RawKV interface.
@@ -943,7 +944,7 @@ func (mvcc *MVCCLevelDB) RawBatchDelete(keys [][]byte) {
 	for _, key := range keys {
 		batch.Delete(key)
 	}
-	log.Error(mvcc.db.Write(batch, nil))
+	Log(mvcc.db.Write(batch, nil))
 }
 
 // RawScan implements the RawKV interface.
@@ -974,7 +975,7 @@ func (mvcc *MVCCLevelDB) RawScan(startKey, endKey []byte, limit int) []Pair {
 
 // RawDeleteRange implements the RawKV interface.
 func (mvcc *MVCCLevelDB) RawDeleteRange(startKey, endKey []byte) {
-	log.Error(mvcc.doRawDeleteRange(startKey, endKey))
+	Log(mvcc.doRawDeleteRange(startKey, endKey))
 }
 
 // doRawDeleteRange deletes all keys in a range and return the error if any.

@@ -19,12 +19,13 @@ import (
 	"time"
 
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	"github.com/prometheus/common/log"
 	"github.com/tikv/client-go/key"
 	"github.com/tikv/client-go/metrics"
 	"github.com/tikv/client-go/txnkv/kv"
 	"github.com/tikv/client-go/txnkv/store"
+	"go.uber.org/zap"
 )
 
 // Transaction is a key-value transaction.
@@ -235,7 +236,7 @@ func (txn *Transaction) Commit(ctx context.Context) error {
 	// latches disabled
 	if txn.tikvStore.GetTxnLatches() == nil {
 		err = committer.Execute(ctx)
-		log.Debug("[kv]", txn.startTS, " txnLatches disabled, 2pc directly:", err)
+		log.Debug("[kv] txnLatches disabled, 2pc directly:", zap.Uint64("startTS", txn.startTS), zap.Error(err))
 		return err
 	}
 
@@ -256,7 +257,7 @@ func (txn *Transaction) Commit(ctx context.Context) error {
 	if err == nil {
 		lock.SetCommitTS(committer.GetCommitTS())
 	}
-	log.Debug("[kv]", txn.startTS, " txnLatches enabled while txn retryable:", err)
+	log.Debug("[kv] txnLatches enabled while txn retryable:", zap.Uint64("startTS", txn.startTS), zap.Error(err))
 	return err
 }
 
@@ -271,7 +272,7 @@ func (txn *Transaction) Rollback() error {
 		metrics.TxnHistogram.Observe(time.Since(txn.startTime).Seconds())
 	}()
 	txn.close()
-	log.Debugf("[kv] Rollback txn %d", txn.startTS)
+	log.Debug("[kv] Rollback txn", zap.Uint64("startTS", txn.startTS))
 
 	return nil
 }

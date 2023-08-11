@@ -20,17 +20,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/locate"
 	"github.com/tikv/client-go/metrics"
+	"github.com/tikv/client-go/pd"
 	"github.com/tikv/client-go/retry"
 	"github.com/tikv/client-go/rpc"
 	"github.com/tikv/client-go/txnkv/latch"
 	"github.com/tikv/client-go/txnkv/oracle"
 	"github.com/tikv/client-go/txnkv/oracle/oracles"
-	pd "github.com/tikv/pd/client"
+	"go.uber.org/zap"
 )
 
 // TiKVStore contains methods to interact with a TiKV cluster.
@@ -199,7 +200,7 @@ func (s *TiKVStore) runSafePointChecker() {
 				d = s.conf.Txn.GcSafePointUpdateInterval
 			} else {
 				metrics.LoadSafepointCounter.WithLabelValues("fail").Inc()
-				log.Errorf("fail to load safepoint from pd: %v", err)
+				log.Error("fail to load safepoint from pd", zap.Error(err))
 				d = s.conf.Txn.GcSafePointQuickRepeatInterval
 			}
 		case <-s.Closed():

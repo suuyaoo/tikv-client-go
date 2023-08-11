@@ -26,10 +26,11 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pingcap/kvproto/pkg/coprocessor"
 	"github.com/pingcap/kvproto/pkg/tikvpb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/metrics"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	gcodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -91,8 +92,8 @@ func (c *batchCommandsClient) failPendingRequests(err error) {
 func (c *batchCommandsClient) batchRecvLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("batchRecvLoop %v", r)
-			log.Infof("Restart batchRecvLoop")
+			log.Error("batchRecvLoop", zap.Any("recover", r))
+			log.Info("Restart batchRecvLoop")
 			go c.batchRecvLoop()
 		}
 	}()
@@ -104,7 +105,7 @@ func (c *batchCommandsClient) batchRecvLoop() {
 			if c.isStopped() {
 				return
 			}
-			log.Errorf("batchRecvLoop error when receive: %v", err)
+			log.Error("batchRecvLoop error when receive", zap.Error(err))
 
 			// Hold the lock to forbid batchSendLoop using the old client.
 			c.clientLock.Lock()
@@ -114,11 +115,11 @@ func (c *batchCommandsClient) batchRecvLoop() {
 				tikvClient := tikvpb.NewTikvClient(c.conn)
 				streamClient, err := tikvClient.BatchCommands(context.TODO())
 				if err == nil {
-					log.Infof("batchRecvLoop re-create streaming success")
+					log.Info("batchRecvLoop re-create streaming success")
 					c.client = streamClient
 					break
 				}
-				log.Errorf("batchRecvLoop re-create streaming fail: %v", err)
+				log.Error("batchRecvLoop re-create streaming fail", zap.Error(err))
 				// TODO: Use a more smart backoff strategy.
 				time.Sleep(time.Second)
 			}
@@ -354,8 +355,8 @@ func fetchMorePendingRequests(
 func (a *connArray) batchSendLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("batchSendLoop %v", r)
-			log.Infof("Restart batchSendLoop")
+			log.Error("batchSendLoop", zap.Any("recover", r))
+			log.Info("Restart batchSendLoop")
 			go a.batchSendLoop()
 		}
 	}()
@@ -414,7 +415,7 @@ func (a *connArray) batchSendLoop() {
 		err := batchCommandsClient.client.Send(request)
 		batchCommandsClient.clientLock.Unlock()
 		if err != nil {
-			log.Errorf("batch commands send error: %v", err)
+			log.Error("batch commands send error", zap.Error(err))
 			batchCommandsClient.failPendingRequests(err)
 		}
 	}
@@ -505,7 +506,7 @@ func sendBatchRequest(
 	select {
 	case connArray.batchCommandsCh <- entry:
 	case <-ctx1.Done():
-		log.Warnf("SendRequest to %s is timeout", addr)
+		log.Warn("SendRequest is timeout", zap.String("addr", addr))
 		return nil, errors.WithStack(gstatus.Error(gcodes.DeadlineExceeded, "Canceled or timeout"))
 	}
 
@@ -517,7 +518,7 @@ func sendBatchRequest(
 		return FromBatchCommandsResponse(res), nil
 	case <-ctx1.Done():
 		atomic.StoreInt32(&entry.canceled, 1)
-		log.Warnf("SendRequest to %s is canceled", addr)
+		log.Warn("SendRequest is canceled", zap.String("addr", addr))
 		return nil, errors.WithStack(gstatus.Error(gcodes.DeadlineExceeded, "Canceled or timeout"))
 	}
 }

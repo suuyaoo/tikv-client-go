@@ -23,9 +23,9 @@ import (
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/locate"
 	"github.com/tikv/client-go/metrics"
+	"github.com/tikv/client-go/pd"
 	"github.com/tikv/client-go/retry"
 	"github.com/tikv/client-go/rpc"
-	pd "github.com/tikv/pd/client"
 )
 
 var (
@@ -117,7 +117,6 @@ func (c *Client) Get(ctx context.Context, key []byte) ([]byte, error) {
 	return cmdResp.Value, nil
 }
 
-
 // Get queries value with the key. When the key does not exist, it returns `nil, nil`.
 func (c *Client) GetKeyTTL(ctx context.Context, key []byte) (*uint64, error) {
 	start := time.Now()
@@ -195,7 +194,7 @@ func (c *Client) Put(ctx context.Context, key, value []byte, options ...PutOptio
 		RawPut: &kvrpcpb.RawPutRequest{
 			Key:   key,
 			Value: value,
-			Ttl:  ttl,
+			Ttl:   ttl,
 		},
 	}
 	resp, _, err := c.sendReq(ctx, key, req)
@@ -677,7 +676,7 @@ func (c *Client) doBatchPut(bo *retry.Backoffer, batch batch, ttl uint64) error 
 		Type: rpc.CmdRawBatchPut,
 		RawBatchPut: &kvrpcpb.RawBatchPutRequest{
 			Pairs: kvPair,
-			Ttl: ttl,
+			Ttl:   ttl,
 		},
 	}
 

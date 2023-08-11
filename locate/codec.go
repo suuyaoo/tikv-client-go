@@ -17,7 +17,7 @@ import (
 	"context"
 
 	"github.com/tikv/client-go/codec"
-	pd "github.com/tikv/pd/client"
+	"github.com/tikv/client-go/pd"
 )
 
 // CodecPDClient wraps a PD Client to decode the encoded keys in region meta.

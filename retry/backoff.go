@@ -20,9 +20,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/metrics"
+	"go.uber.org/zap"
 )
 
 const (
@@ -60,7 +61,7 @@ func NewBackoffFn(base, cap, jitter int) func(ctx context.Context) int {
 		case DecorrJitter:
 			sleep = int(math.Min(float64(cap), float64(base+rand.Intn(lastSleep*3-base))))
 		}
-		log.Debugf("backoff base %d, sleep %d", base, sleep)
+		log.Debug("backoff", zap.Int("base", base), zap.Int("sleep", sleep))
 		select {
 		case <-time.After(time.Duration(sleep) * time.Millisecond):
 		case <-ctx.Done():
@@ -200,14 +201,19 @@ func (b *Backoffer) Backoff(typ BackoffType, err error) error {
 	if ts := b.ctx.Value(txnStartKey); ts != nil {
 		startTs = ts
 	}
-	log.Debugf("%v, retry later(totalsleep %dms, maxsleep %dms), type: %s, txn_start_ts: %v", err, b.totalSleep, b.maxSleep, typ.String(), startTs)
+	log.Debug("retry later",
+		zap.Error(err),
+		zap.Int("total sleep", b.totalSleep),
+		zap.Int("max sleep", b.maxSleep),
+		zap.String("type", typ.String()),
+		zap.Any("txn_start_ts", startTs))
 
 	b.errors = append(b.errors, errors.Errorf("%s at %s", err.Error(), time.Now().Format(time.RFC3339Nano)))
 	if b.maxSleep > 0 && b.totalSleep >= b.maxSleep {
 		errMsg := fmt.Sprintf("backoffer.maxSleep %dms is exceeded, errors:", b.maxSleep)
 		for i, err := range b.errors {
 			// Print only last 3 errors for non-DEBUG log levels.
-			if log.GetLevel() == log.DebugLevel || i >= len(b.errors)-3 {
+			if log.GetLevel() == zap.DebugLevel || i >= len(b.errors)-3 {
 				errMsg += "\n" + err.Error()
 			}
 		}

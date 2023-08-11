@@ -18,11 +18,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/pingcap/log"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/metrics"
+	"github.com/tikv/client-go/pd"
 	"github.com/tikv/client-go/txnkv/oracle"
-	pd "github.com/tikv/pd/client"
+	"go.uber.org/zap"
 )
 
 var _ oracle.Oracle = &pdOracle{}
@@ -105,7 +106,7 @@ func (o *pdOracle) getTimestamp(ctx context.Context) (uint64, error) {
 	}
 	dist := time.Since(now)
 	if dist > o.conf.TsoSlowThreshold {
-		log.Warnf("get timestamp too slow: %s", dist)
+		log.Warn("get timestamp too slow", zap.Duration("dist", dist))
 	}
 	return oracle.ComposeTS(physical, logical), nil
 }
@@ -124,7 +125,7 @@ func (o *pdOracle) updateTS(ctx context.Context, interval time.Duration) {
 		case <-ticker.C:
 			ts, err := o.getTimestamp(ctx)
 			if err != nil {
-				log.Errorf("updateTS error: %v", err)
+				log.Error("updateTS error", zap.Error(err))
 				break
 			}
 			o.setLastTS(ts)

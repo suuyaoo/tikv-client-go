@@ -21,9 +21,10 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"go.etcd.io/etcd/clientv3"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -121,7 +122,7 @@ func saveSafePoint(kv SafePointKV, key string, t uint64) error {
 	s := strconv.FormatUint(t, 10)
 	err := kv.Put(key, s)
 	if err != nil {
-		log.Error("save safepoint failed:", err)
+		log.Error("save safepoint failed:", zap.Error(err))
 		return err
 	}
 	return nil

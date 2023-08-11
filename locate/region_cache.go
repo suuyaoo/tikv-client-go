@@ -23,13 +23,14 @@ import (
 	"github.com/google/btree"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/codec"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/metrics"
+	"github.com/tikv/client-go/pd"
 	"github.com/tikv/client-go/retry"
-	pd "github.com/tikv/pd/client"
+	"go.uber.org/zap"
 )
 
 // CachedRegion encapsulates {Region, TTL}
@@ -249,12 +250,16 @@ func (c *RegionCache) UpdateLeader(regionID RegionVerID, leaderStoreID uint64) {
 
 	r := c.getCachedRegion(regionID)
 	if r == nil {
-		log.Debugf("regionCache: cannot find region when updating leader %d,%d", regionID, leaderStoreID)
+		log.Debug("regionCache: cannot find region when updating leader",
+			zap.Any("region", regionID),
+			zap.Uint64("leader store", leaderStoreID))
 		return
 	}
 
 	if !r.SwitchPeer(leaderStoreID) {
-		log.Debugf("regionCache: cannot find peer when updating leader %d,%d", regionID, leaderStoreID)
+		log.Debug("regionCache: cannot find peer when updating leader",
+			zap.Any("region", regionID),
+			zap.Uint64("leader store", leaderStoreID))
 		c.dropRegionFromCache(r.VerID())
 	}
 }
@@ -479,8 +484,10 @@ func (c *RegionCache) DropStoreOnSendRequestFail(ctx *RPCContext, err error) {
 		delete(c.storeMu.stores, failedStoreID)
 	}
 	c.storeMu.Unlock()
-	log.Infof("drop regions that on the store %d(%s) due to send request fail, err: %v",
-		failedStoreID, failedStoreAddr, err)
+	log.Info("drop regions that on the store due to send request fail",
+		zap.Uint64("store id", failedStoreID),
+		zap.String("store addr", failedStoreAddr),
+		zap.Error(err))
 }
 
 // OnRegionStale removes the old region and inserts new regions into the cache.

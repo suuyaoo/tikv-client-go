@@ -17,9 +17,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/pingcap/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // PushMetrics pushes metrics to Prometheus Pushgateway.
@@ -43,7 +44,7 @@ func PushMetrics(ctx context.Context, addr string, interval time.Duration, job, 
 
 		err := push.New(addr, job).Grouping("instance", instance).Gatherer(prometheus.DefaultGatherer).Push()
 		if err != nil {
-			log.Errorf("cannot push metrics to prometheus pushgateway: %v", err)
+			log.Error("cannot push metrics to prometheus pushgateway", zap.Error(err))
 		}
 	}
 }

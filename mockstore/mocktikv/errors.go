@@ -13,7 +13,12 @@
 
 package mocktikv
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/pingcap/log"
+	"go.uber.org/zap"
+)
 
 // ErrLocked is returned when trying to Read/Write on a locked key. Client should
 // backoff or cleanup the lock then retry.
@@ -49,4 +54,11 @@ type ErrAlreadyCommitted uint64
 
 func (e ErrAlreadyCommitted) Error() string {
 	return fmt.Sprint("txn already committed")
+}
+
+// Log logs the error if it is not nil.
+func Log(err error) {
+	if err != nil {
+		log.Error("encountered error", zap.Error(err), zap.Stack("stack"))
+	}
 }

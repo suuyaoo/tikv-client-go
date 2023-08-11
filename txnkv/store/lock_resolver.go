@@ -20,13 +20,14 @@ import (
 	"time"
 
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/locate"
 	"github.com/tikv/client-go/metrics"
 	"github.com/tikv/client-go/retry"
 	"github.com/tikv/client-go/rpc"
+	"go.uber.org/zap"
 )
 
 // LockResolver resolves locks and also caches resolved txn status.
@@ -139,7 +140,9 @@ func (lr *LockResolver) BatchResolveLocks(bo *retry.Backoffer, locks []*Lock, lo
 		}
 	}
 	if len(expiredLocks) != len(locks) {
-		log.Errorf("BatchResolveLocks: get %d Locks, but only %d are expired, maybe safe point is wrong!", len(locks), len(expiredLocks))
+		log.Error("BatchResolveLocks: maybe safe point is wrong!",
+			zap.Int("get locks count", len(locks)),
+			zap.Int("expired locks count", len(expiredLocks)))
 		return false, nil
 	}
 
@@ -156,7 +159,9 @@ func (lr *LockResolver) BatchResolveLocks(bo *retry.Backoffer, locks []*Lock, lo
 		}
 		txnInfos[l.TxnID] = uint64(status)
 	}
-	log.Infof("BatchResolveLocks: it took %v to lookup %v txn status", time.Since(startTime), len(txnInfos))
+	log.Info("BatchResolveLocks: lookup txn status",
+		zap.Duration("cost time", time.Since(startTime)),
+		zap.Int("txn count", len(txnInfos)))
 
 	var listTxnInfos []*kvrpcpb.TxnInfo
 	for txnID, status := range txnInfos {
@@ -199,7 +204,9 @@ func (lr *LockResolver) BatchResolveLocks(bo *retry.Backoffer, locks []*Lock, lo
 		return false, errors.Errorf("unexpected resolve err: %s", keyErr)
 	}
 
-	log.Infof("BatchResolveLocks: it took %v to resolve %v locks in a batch.", time.Since(startTime), len(expiredLocks))
+	log.Info("BatchResolveLocks: resolve locks in a batch.",
+		zap.Duration("cost time", time.Since(startTime)),
+		zap.Int("expired locks count", len(expiredLocks)))
 	return true, nil
 }
 
@@ -305,7 +312,7 @@ func (lr *LockResolver) getTxnStatus(bo *retry.Backoffer, txnID uint64, primary 
 		}
 		if keyErr := cmdResp.GetError(); keyErr != nil {
 			err = errors.Errorf("unexpected cleanup err: %s, tid: %v", keyErr, txnID)
-			log.Error(err)
+			log.Error("getTxnStatus error", zap.Error(err))
 			return status, err
 		}
 		if cmdResp.CommitVersion != 0 {
@@ -359,7 +366,7 @@ func (lr *LockResolver) resolveLock(bo *retry.Backoffer, l *Lock, status TxnStat
 		}
 		if keyErr := cmdResp.GetError(); keyErr != nil {
 			err = errors.Errorf("unexpected resolve err: %s, lock: %v", keyErr, l)
-			log.Error(err)
+			log.Error("resolveLock error", zap.Error(err))
 			return err
 		}
 		cleanRegions[loc.Region] = struct{}{}

@@ -22,13 +22,14 @@ import (
 	"time"
 
 	pb "github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/metrics"
 	"github.com/tikv/client-go/retry"
 	"github.com/tikv/client-go/rpc"
 	"github.com/tikv/client-go/txnkv/kv"
+	"go.uber.org/zap"
 )
 
 type commitAction int
@@ -211,7 +212,10 @@ func (c *TxnCommitter) doActionOnKeys(bo *retry.Backoffer, action commitAction, 
 		go func() {
 			e := c.doActionOnBatches(secondaryBo, action, batches)
 			if e != nil {
-				log.Debugf("con:%d 2PC async doActionOnBatches %s err: %v", c.ConnID, action, e)
+				log.Debug("2PC async doActionOnBatches err",
+					zap.Uint64("connect id", c.ConnID),
+					zap.String("action", action.String()),
+					zap.Error(e))
 				metrics.SecondaryLockCleanupFailureCounter.WithLabelValues("commit").Inc()
 			}
 		}()
@@ -238,7 +242,11 @@ func (c *TxnCommitter) doActionOnBatches(bo *retry.Backoffer, action commitActio
 	if len(batches) == 1 {
 		e := singleBatchActionFunc(bo, batches[0])
 		if e != nil {
-			log.Debugf("con:%d 2PC doActionOnBatches %s failed: %v, tid: %d", c.ConnID, action, e, c.startTS)
+			log.Debug("2PC doActionOnBatches failed",
+				zap.Uint64("connect id", c.ConnID),
+				zap.String("action", action.String()),
+				zap.Error(e),
+				zap.Uint64("tid", c.startTS))
 		}
 		return e
 	}
@@ -276,10 +284,17 @@ func (c *TxnCommitter) doActionOnBatches(bo *retry.Backoffer, action commitActio
 	var err error
 	for i := 0; i < len(batches); i++ {
 		if e := <-ch; e != nil {
-			log.Debugf("con:%d 2PC doActionOnBatches %s failed: %v, tid: %d", c.ConnID, action, e, c.startTS)
+			log.Debug("2PC doActionOnBatches failed",
+				zap.Uint64("connect id", c.ConnID),
+				zap.String("action", action.String()),
+				zap.Error(e),
+				zap.Uint64("tid", c.startTS))
 			// Cancel other requests and return the first error.
 			if cancel != nil {
-				log.Debugf("con:%d 2PC doActionOnBatches %s to cancel other actions, tid: %d", c.ConnID, action, c.startTS)
+				log.Debug("2PC doActionOnBatches cancel other actions",
+					zap.Uint64("connect id", c.ConnID),
+					zap.String("action", action.String()),
+					zap.Uint64("tid", c.startTS))
 				cancel()
 			}
 			if err == nil {
@@ -357,7 +372,9 @@ func (c *TxnCommitter) prewriteSingleBatch(bo *retry.Backoffer, batch batchKeys)
 			if err1 != nil {
 				return err1
 			}
-			log.Debugf("con:%d 2PC prewrite encounters lock: %v", c.ConnID, lock)
+			log.Debug("2PC prewrite encounters",
+				zap.Uint64("connect id", c.ConnID),
+				zap.Any("lock", lock))
 			locks = append(locks, lock)
 		}
 		start := time.Now()
@@ -446,11 +463,15 @@ func (c *TxnCommitter) commitSingleBatch(bo *retry.Backoffer, batch batchKeys) e
 		if c.mu.committed {
 			// No secondary key could be rolled back after it's primary key is committed.
 			// There must be a serious bug somewhere.
-			log.Errorf("2PC failed commit key after primary key committed: %v, tid: %d", err, c.startTS)
+			log.Error("2PC failed commit key after primary key committed",
+				zap.Error(err),
+				zap.Uint64("tid", c.startTS))
 			return err
 		}
 		// The transaction maybe rolled back by concurrent transactions.
-		log.Debugf("2PC failed commit primary key: %v, retry later, tid: %d", err, c.startTS)
+		log.Debug("2PC failed commit primary key, retry later",
+			zap.Error(err),
+			zap.Uint64("tid", c.startTS))
 		return errors.WithMessage(err, TxnRetryableMark)
 	}
 
@@ -491,7 +512,9 @@ func (c *TxnCommitter) cleanupSingleBatch(bo *retry.Backoffer, batch batchKeys) 
 	}
 	if keyErr := resp.BatchRollback.GetError(); keyErr != nil {
 		err = errors.Errorf("con:%d 2PC cleanup failed: %s", c.ConnID, keyErr)
-		log.Debugf("2PC failed cleanup key: %v, tid: %d", err, c.startTS)
+		log.Debug("2PC failed cleanup key",
+			zap.Error(err),
+			zap.Uint64("tid", c.startTS))
 		return err
 	}
 	return nil
@@ -523,9 +546,14 @@ func (c *TxnCommitter) Execute(ctx context.Context) error {
 				err := c.cleanupKeys(retry.NewBackoffer(context.Background(), retry.CleanupMaxBackoff), c.keys)
 				if err != nil {
 					metrics.SecondaryLockCleanupFailureCounter.WithLabelValues("rollback").Inc()
-					log.Infof("con:%d 2PC cleanup err: %v, tid: %d", c.ConnID, err, c.startTS)
+					log.Info("2PC cleanup err",
+						zap.Uint64("conntect id", c.ConnID),
+						zap.Error(err),
+						zap.Uint64("tid", c.startTS))
 				} else {
-					log.Infof("con:%d 2PC clean up done, tid: %d", c.ConnID, c.startTS)
+					log.Info("2PC clean up done",
+						zap.Uint64("conntect id", c.ConnID),
+						zap.Uint64("tid", c.startTS))
 				}
 				c.cleanWg.Done()
 			}()
@@ -539,14 +567,20 @@ func (c *TxnCommitter) Execute(ctx context.Context) error {
 	c.detail.TotalBackoffTime += prewriteBo.TotalSleep()
 
 	if err != nil {
-		log.Debugf("con:%d 2PC failed on prewrite: %v, tid: %d", c.ConnID, err, c.startTS)
+		log.Debug("2PC failed on prewrite",
+			zap.Uint64("conntect id", c.ConnID),
+			zap.Error(err),
+			zap.Uint64("tid", c.startTS))
 		return err
 	}
 
 	start = time.Now()
 	commitTS, err := c.store.GetTimestampWithRetry(retry.NewBackoffer(ctx, retry.TsoMaxBackoff))
 	if err != nil {
-		log.Warnf("con:%d 2PC get commitTS failed: %v, tid: %d", c.ConnID, err, c.startTS)
+		log.Warn("2PC get commitTS failed",
+			zap.Uint64("conntect id", c.ConnID),
+			zap.Error(err),
+			zap.Uint64("tid", c.startTS))
 		return err
 	}
 	c.detail.GetCommitTsTime = time.Since(start)
@@ -555,7 +589,7 @@ func (c *TxnCommitter) Execute(ctx context.Context) error {
 	if commitTS <= c.startTS {
 		err = errors.Errorf("con:%d Invalid transaction tso with start_ts=%v while commit_ts=%v",
 			c.ConnID, c.startTS, commitTS)
-		log.Error(err)
+		log.Error("", zap.Error(err))
 		return err
 	}
 	c.commitTS = commitTS
@@ -572,15 +606,25 @@ func (c *TxnCommitter) Execute(ctx context.Context) error {
 	c.detail.TotalBackoffTime += commitBo.TotalSleep()
 	if err != nil {
 		if undeterminedErr := c.getUndeterminedErr(); undeterminedErr != nil {
-			log.Warnf("con:%d 2PC commit result undetermined, err: %v, rpcErr: %v, tid: %v", c.ConnID, err, undeterminedErr, c.startTS)
-			log.Error(err)
+			log.Warn("2PC commit result undetermined",
+				zap.Uint64("conntect id", c.ConnID),
+				zap.Error(err),
+				zap.NamedError("rpcErr", undeterminedErr),
+				zap.Uint64("tid", c.startTS))
+			log.Error("2PC commit result undetermined ", zap.Error(err))
 			err = errors.WithStack(ErrResultUndetermined)
 		}
 		if !c.mu.committed {
-			log.Debugf("con:%d 2PC failed on commit: %v, tid: %d", c.ConnID, err, c.startTS)
+			log.Debug("2PC failed on commit",
+				zap.Uint64("conntect id", c.ConnID),
+				zap.Error(err),
+				zap.Uint64("tid", c.startTS))
 			return err
 		}
-		log.Debugf("con:%d 2PC succeed with error: %v, tid: %d", c.ConnID, err, c.startTS)
+		log.Debug("2PC succeed with error",
+			zap.Uint64("conntect id", c.ConnID),
+			zap.Error(err),
+			zap.Uint64("tid", c.startTS))
 	}
 	return nil
 }

@@ -20,9 +20,10 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/pingcap/log"
 	"github.com/spaolacci/murmur3"
 	"github.com/tikv/client-go/config"
+	"go.uber.org/zap"
 )
 
 type node struct {
@@ -293,7 +294,7 @@ func (latches *Latches) recycle(currentTS uint64) {
 		total += latch.recycle(currentTS, latches.conf.ExpireDuration)
 		latch.Unlock()
 	}
-	log.Debugf("recycle run at %v, recycle count = %d...\n", time.Now(), total)
+	log.Debug("recycle run...\n", zap.Time("time", time.Now()), zap.Int("total", total))
 }
 
 func findNode(list *node, key []byte) *node {

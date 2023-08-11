@@ -18,13 +18,14 @@ import (
 	"context"
 
 	pb "github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/key"
 	"github.com/tikv/client-go/retry"
 	"github.com/tikv/client-go/rpc"
 	"github.com/tikv/client-go/txnkv/kv"
+	"go.uber.org/zap"
 )
 
 // Scanner support tikv scan
@@ -149,7 +150,7 @@ func (s *Scanner) resolveCurrentLock(bo *retry.Backoffer, current *pb.KvPair) er
 }
 
 func (s *Scanner) getData(bo *retry.Backoffer) error {
-	log.Debugf("txn getData nextStartKey[%q], txn %d", s.nextStartKey, s.startTS())
+	log.Debug("txn getData", zap.ByteString("nextStartKey", s.nextStartKey), zap.Uint64("start txn", s.startTS()))
 	sender := rpc.NewRegionRequestSender(s.snapshot.store.GetRegionCache(), s.snapshot.store.GetRPCClient())
 
 	for {
@@ -186,7 +187,7 @@ func (s *Scanner) getData(bo *retry.Backoffer) error {
 			return err
 		}
 		if regionErr != nil {
-			log.Debugf("scanner getData failed: %s", regionErr)
+			log.Debug("scanner getData failed", zap.Any("region err", regionErr))
 			err = bo.Backoff(retry.BoRegionMiss, errors.New(regionErr.String()))
 			if err != nil {
 				return err
