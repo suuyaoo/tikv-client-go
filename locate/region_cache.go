@@ -21,10 +21,10 @@ import (
 	"time"
 
 	"github.com/google/btree"
+	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pkg/errors"
 	"github.com/tikv/client-go/codec"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/metrics"

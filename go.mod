@@ -15,7 +15,6 @@ require (
 	github.com/pingcap/goleveldb v0.0.0-20191226122134-f82aafb29989
 	github.com/pingcap/kvproto v0.0.0-20210219095907-b2375dcc80ad
 	github.com/pingcap/log v1.1.1-0.20230317032135-a0d097d16e22
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.1
 	github.com/spaolacci/murmur3 v1.1.0
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20230711085208-c92fb80f3944

@@ -17,9 +17,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/errorpb"
 	"github.com/pingcap/log"
-	"github.com/pkg/errors"
 	"github.com/tikv/client-go/locate"
 	"github.com/tikv/client-go/metrics"
 	"github.com/tikv/client-go/retry"

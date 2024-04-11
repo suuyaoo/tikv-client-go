@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
-	"github.com/pkg/errors"
 	"github.com/tikv/client-go/key"
 	"github.com/tikv/client-go/metrics"
 	"github.com/tikv/client-go/txnkv/kv"

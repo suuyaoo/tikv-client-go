@@ -19,7 +19,7 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/pingcap/errors"
 )
 
 // RPC configurations.

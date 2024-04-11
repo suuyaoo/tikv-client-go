@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/pkg/errors"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/locate"
 	"github.com/tikv/client-go/metrics"
@@ -210,7 +210,8 @@ func (s *TiKVStore) runSafePointChecker() {
 }
 
 // CheckVisibility checks if it is safe to read using startTS (the startTS should
-//  be greater than current GC safepoint).
+//
+//	be greater than current GC safepoint).
 func (s *TiKVStore) CheckVisibility(startTS uint64) error {
 	s.spMutex.RLock()
 	cachedSafePoint := s.safePoint

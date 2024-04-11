@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/coprocessor"
 	"github.com/pingcap/kvproto/pkg/errorpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
@@ -145,7 +145,7 @@ type Request struct {
 	RawBatchDelete     *kvrpcpb.RawBatchDeleteRequest
 	RawDeleteRange     *kvrpcpb.RawDeleteRangeRequest
 	RawScan            *kvrpcpb.RawScanRequest
-	RawGetKeyTTL	   *kvrpcpb.RawGetKeyTTLRequest
+	RawGetKeyTTL       *kvrpcpb.RawGetKeyTTLRequest
 	UnsafeDestroyRange *kvrpcpb.UnsafeDestroyRangeRequest
 	Cop                *coprocessor.Request
 	MvccGetByKey       *kvrpcpb.MvccGetByKeyRequest

@@ -17,7 +17,7 @@ import (
 	"context"
 
 	. "github.com/pingcap/check"
-	"github.com/pkg/errors"
+	"github.com/pingcap/errors"
 	"github.com/tikv/client-go/config"
 )
 

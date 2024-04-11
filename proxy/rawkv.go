@@ -17,7 +17,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/pkg/errors"
+	"github.com/pingcap/errors"
 	"github.com/tikv/client-go/config"
 	"github.com/tikv/client-go/rawkv"
 )

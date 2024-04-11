@@ -16,15 +16,15 @@ package mocktikv
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"io"
 	"time"
-	"encoding/binary"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/errorpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/pkg/errors"
 	"github.com/tikv/client-go/rpc"
 )
 
@@ -411,7 +411,7 @@ func (h *rpcHandler) handleKvRawPut(req *kvrpcpb.RawPutRequest) *kvrpcpb.RawPutR
 	value := req.GetValue()
 	if ttl := req.GetTtl(); ttl != 0 {
 		value = append(value, make([]byte, 8)...)
-		binary.LittleEndian.PutUint64(value[len(value) - 8:], ttl)
+		binary.LittleEndian.PutUint64(value[len(value)-8:], ttl)
 	}
 	rawKV.RawPut(req.GetKey(), value)
 	return &kvrpcpb.RawPutResponse{}
@@ -431,7 +431,7 @@ func (h *rpcHandler) handleKvRawBatchPut(req *kvrpcpb.RawBatchPutRequest) *kvrpc
 		value := pair.Value
 		if ttl := req.GetTtl(); ttl != 0 {
 			value = append(value, make([]byte, 8)...)
-			binary.LittleEndian.PutUint64(value[len(value) - 8:], ttl)
+			binary.LittleEndian.PutUint64(value[len(value)-8:], ttl)
 		}
 		values = append(values, value)
 	}
@@ -502,7 +502,6 @@ func (h *rpcHandler) handleKvRawScan(req *kvrpcpb.RawScanRequest) *kvrpcpb.RawSc
 	}
 }
 
-
 func (h *rpcHandler) handleKvRawGetKeyTTL(req *kvrpcpb.RawGetKeyTTLRequest) *kvrpcpb.RawGetKeyTTLResponse {
 	rawKV, ok := h.mvccStore.(RawKV)
 	if !ok {
@@ -517,7 +516,7 @@ func (h *rpcHandler) handleKvRawGetKeyTTL(req *kvrpcpb.RawGetKeyTTLRequest) *kvr
 		}
 	} else {
 		return &kvrpcpb.RawGetKeyTTLResponse{
-			Ttl:  binary.LittleEndian.Uint64(value[len(value) - 8:]),
+			Ttl: binary.LittleEndian.Uint64(value[len(value)-8:]),
 		}
 	}
 }

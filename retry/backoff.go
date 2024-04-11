@@ -20,8 +20,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/pkg/errors"
 	"github.com/tikv/client-go/metrics"
 	"go.uber.org/zap"
 )
