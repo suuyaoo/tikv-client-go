@@ -56,9 +56,6 @@ const (
 
 	CmdUnsafeDestroyRange
 
-	CmdCop CmdType = 512 + iota
-	CmdCopStream
-
 	CmdMvccGetByKey CmdType = 1024 + iota
 	CmdMvccGetByStartTs
 	CmdSplitRegion
@@ -108,10 +105,6 @@ func (t CmdType) String() string {
 		return "RawGetKeyTTL"
 	case CmdUnsafeDestroyRange:
 		return "UnsafeDestroyRange"
-	case CmdCop:
-		return "Cop"
-	case CmdCopStream:
-		return "CopStream"
 	case CmdMvccGetByKey:
 		return "MvccGetByKey"
 	case CmdMvccGetByStartTs:
@@ -194,8 +187,6 @@ func (req *Request) ToBatchCommandsRequest() *tikvpb.BatchCommandsRequest_Reques
 		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_RawDeleteRange{RawDeleteRange: req.RawDeleteRange}}
 	case CmdRawScan:
 		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_RawScan{RawScan: req.RawScan}}
-	case CmdCop:
-		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_Coprocessor{Coprocessor: req.Cop}}
 	}
 	return nil
 }
@@ -225,7 +216,6 @@ type Response struct {
 	RawGetKeyTTL       *kvrpcpb.RawGetKeyTTLResponse
 	UnsafeDestroyRange *kvrpcpb.UnsafeDestroyRangeResponse
 	Cop                *coprocessor.Response
-	CopStream          *CopStreamResponse
 	MvccGetByKey       *kvrpcpb.MvccGetByKeyResponse
 	MvccGetByStartTS   *kvrpcpb.MvccGetByStartTsResponse
 	SplitRegion        *kvrpcpb.SplitRegionResponse
@@ -272,20 +262,8 @@ func FromBatchCommandsResponse(res *tikvpb.BatchCommandsResponse_Response) *Resp
 		return &Response{Type: CmdRawDeleteRange, RawDeleteRange: res.RawDeleteRange}
 	case *tikvpb.BatchCommandsResponse_Response_RawScan:
 		return &Response{Type: CmdRawScan, RawScan: res.RawScan}
-	case *tikvpb.BatchCommandsResponse_Response_Coprocessor:
-		return &Response{Type: CmdCop, Cop: res.Coprocessor}
 	}
 	return nil
-}
-
-// CopStreamResponse combinates tikvpb.Tikv_CoprocessorStreamClient and the first Recv() result together.
-// In streaming API, get grpc stream client may not involve any network packet, then region error have
-// to be handled in Recv() function. This struct facilitates the error handling.
-type CopStreamResponse struct {
-	tikvpb.Tikv_CoprocessorStreamClient
-	*coprocessor.Response // The first result of Recv()
-	Timeout               time.Duration
-	Lease                 // Shared by this object and a background goroutine.
 }
 
 // SetContext set the Context field for the given req to the specified ctx.
@@ -338,10 +316,6 @@ func SetContext(req *Request, region *metapb.Region, peer *metapb.Peer) error {
 		req.RawGetKeyTTL.Context = ctx
 	case CmdUnsafeDestroyRange:
 		req.UnsafeDestroyRange.Context = ctx
-	case CmdCop:
-		req.Cop.Context = ctx
-	case CmdCopStream:
-		req.Cop.Context = ctx
 	case CmdMvccGetByKey:
 		req.MvccGetByKey.Context = ctx
 	case CmdMvccGetByStartTs:
@@ -444,16 +418,6 @@ func GenRegionErrorResp(req *Request, e *errorpb.Error) (*Response, error) {
 		resp.UnsafeDestroyRange = &kvrpcpb.UnsafeDestroyRangeResponse{
 			RegionError: e,
 		}
-	case CmdCop:
-		resp.Cop = &coprocessor.Response{
-			RegionError: e,
-		}
-	case CmdCopStream:
-		resp.CopStream = &CopStreamResponse{
-			Response: &coprocessor.Response{
-				RegionError: e,
-			},
-		}
 	case CmdMvccGetByKey:
 		resp.MvccGetByKey = &kvrpcpb.MvccGetByKeyResponse{
 			RegionError: e,
@@ -518,10 +482,6 @@ func (resp *Response) GetRegionError() (*errorpb.Error, error) {
 		e = resp.RawGetKeyTTL.GetRegionError()
 	case CmdUnsafeDestroyRange:
 		e = resp.UnsafeDestroyRange.GetRegionError()
-	case CmdCop:
-		e = resp.Cop.GetRegionError()
-	case CmdCopStream:
-		e = resp.CopStream.Response.GetRegionError()
 	case CmdMvccGetByKey:
 		e = resp.MvccGetByKey.GetRegionError()
 	case CmdMvccGetByStartTs:
@@ -584,14 +544,6 @@ func CallRPC(ctx context.Context, client tikvpb.TikvClient, req *Request) (*Resp
 		resp.RawGetKeyTTL, err = client.RawGetKeyTTL(ctx, req.RawGetKeyTTL)
 	case CmdUnsafeDestroyRange:
 		resp.UnsafeDestroyRange, err = client.UnsafeDestroyRange(ctx, req.UnsafeDestroyRange)
-	case CmdCop:
-		resp.Cop, err = client.Coprocessor(ctx, req.Cop)
-	case CmdCopStream:
-		var streamClient tikvpb.Tikv_CoprocessorStreamClient
-		streamClient, err = client.CoprocessorStream(ctx, req.Cop)
-		resp.CopStream = &CopStreamResponse{
-			Tikv_CoprocessorStreamClient: streamClient,
-		}
 	case CmdMvccGetByKey:
 		resp.MvccGetByKey, err = client.MvccGetByKey(ctx, req.MvccGetByKey)
 	case CmdMvccGetByStartTs:
@@ -611,22 +563,6 @@ func CallRPC(ctx context.Context, client tikvpb.TikvClient, req *Request) (*Resp
 type Lease struct {
 	Cancel   context.CancelFunc
 	deadline int64 // A time.UnixNano value, if time.Now().UnixNano() > deadline, cancel() would be called.
-}
-
-// Recv overrides the stream client Recv() function.
-func (resp *CopStreamResponse) Recv() (*coprocessor.Response, error) {
-	deadline := time.Now().Add(resp.Timeout).UnixNano()
-	atomic.StoreInt64(&resp.Lease.deadline, deadline)
-
-	ret, err := resp.Tikv_CoprocessorStreamClient.Recv()
-
-	atomic.StoreInt64(&resp.Lease.deadline, 0) // Stop the lease check.
-	return ret, errors.WithStack(err)
-}
-
-// Close closes the CopStreamResponse object.
-func (resp *CopStreamResponse) Close() {
-	atomic.StoreInt64(&resp.Lease.deadline, 1)
 }
 
 // CheckStreamTimeoutLoop runs periodically to check is there any stream request timeouted.

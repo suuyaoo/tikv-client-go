@@ -760,63 +760,6 @@ func (c *RPCClient) SendRequest(ctx context.Context, addr string, req *rpc.Reque
 		resp.RawGetKeyTTL = handler.handleKvRawGetKeyTTL(r)
 	case rpc.CmdUnsafeDestroyRange:
 		panic("unimplemented")
-	case rpc.CmdCop:
-		// TODO: support register cop handler.
-		panic("unimplemented")
-		// r := req.Cop
-		// if err := handler.checkRequestContext(reqCtx); err != nil {
-		// 	resp.Cop = &coprocessor.Response{RegionError: err}
-		// 	return resp, nil
-		// }
-		// handler.rawStartKey = MvccKey(handler.startKey).Raw()
-		// handler.rawEndKey = MvccKey(handler.endKey).Raw()
-		// var res *coprocessor.Response
-		// switch r.GetTp() {
-		// case kv.ReqTypeDAG:
-		// 	res = handler.handleCopDAGRequest(r)
-		// case kv.ReqTypeAnalyze:
-		// 	res = handler.handleCopAnalyzeRequest(r)
-		// case kv.ReqTypeChecksum:
-		// 	res = handler.handleCopChecksumRequest(r)
-		// default:
-		// 	panic(fmt.Sprintf("unknown coprocessor request type: %v", r.GetTp()))
-		// }
-		// resp.Cop = res
-	case rpc.CmdCopStream:
-		// TODO: support register copStream handler.
-		panic("unimplemented")
-		// r := req.Cop
-		// if err := handler.checkRequestContext(reqCtx); err != nil {
-		// 	resp.CopStream = &rpc.CopStreamResponse{
-		// 		Tikv_CoprocessorStreamClient: &mockCopStreamErrClient{Error: err},
-		// 		Response: &coprocessor.Response{
-		// 			RegionError: err,
-		// 		},
-		// 	}
-		// 	return resp, nil
-		// }
-		// handler.rawStartKey = MvccKey(handler.startKey).Raw()
-		// handler.rawEndKey = MvccKey(handler.endKey).Raw()
-		// ctx1, cancel := context.WithCancel(ctx)
-		// copStream, err := handler.handleCopStream(ctx1, r)
-		// if err != nil {
-		// 	cancel()
-		// 	return nil, err
-		// }
-
-		// streamResp := &rpc.CopStreamResponse{
-		// 	Tikv_CoprocessorStreamClient: copStream,
-		// }
-		// streamResp.Lease.Cancel = cancel
-		// streamResp.Timeout = timeout
-		// c.streamTimeout <- &streamResp.Lease
-
-		// first, err := streamResp.Recv()
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// streamResp.Response = first
-		// resp.CopStream = streamResp
 	case rpc.CmdMvccGetByKey:
 		r := req.MvccGetByKey
 		if err := handler.checkRequest(reqCtx, r.Size()); err != nil {

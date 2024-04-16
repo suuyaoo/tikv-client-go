@@ -15,7 +15,6 @@ package rpc
 
 import (
 	"context"
-	"io"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -25,7 +24,6 @@ import (
 	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/kvproto/pkg/coprocessor"
 	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/pingcap/log"
 	"github.com/tikv/client-go/config"
@@ -545,40 +543,9 @@ func (c *rpcClient) SendRequest(ctx context.Context, addr string, req *Request, 
 
 	client := tikvpb.NewTikvClient(connArray.Get())
 
-	if req.Type != CmdCopStream {
-		ctx1, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		return CallRPC(ctx1, client, req)
-	}
-
-	// Coprocessor streaming request.
-	// Use context to support timeout for grpc streaming client.
-	ctx1, cancel := context.WithCancel(ctx)
+	ctx1, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	resp, err := CallRPC(ctx1, client, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Put the lease object to the timeout channel, so it would be checked periodically.
-	copStream := resp.CopStream
-	copStream.Timeout = timeout
-	copStream.Lease.Cancel = cancel
-	connArray.streamTimeout <- &copStream.Lease
-
-	// Read the first streaming response to get CopStreamResponse.
-	// This can make error handling much easier, because SendReq() retry on
-	// region error automatically.
-	var first *coprocessor.Response
-	first, err = copStream.Recv()
-	if err != nil {
-		if errors.Cause(err) != io.EOF {
-			return nil, err
-		}
-		log.Debug("copstream returns nothing for the request.")
-	}
-	copStream.Response = first
-	return resp, nil
+	return CallRPC(ctx1, client, req)
 }
 
 func (c *rpcClient) Close() error {

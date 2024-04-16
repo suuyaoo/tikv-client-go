@@ -51,4 +51,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 )
 
-replace go.etcd.io/etcd => github.com/suuyaoo/etcd v0.34.28-0.20240410135916-443550e8f555
+replace (
+	github.com/pingcap/kvproto => github.com/suuyaoo/tikv-kvproto v0.0.0-20240416104006-5de858b498dc
+	go.etcd.io/etcd => github.com/suuyaoo/etcd v0.34.28-0.20240410135916-443550e8f555
+)
