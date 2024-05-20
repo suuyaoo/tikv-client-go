@@ -284,7 +284,9 @@ func (c *baseClient) getMembers(ctx context.Context, url string) (*pdpb.GetMembe
 func (c *baseClient) updateURLs(members []*pdpb.Member) {
 	urls := make([]string, 0, len(members))
 	for _, m := range members {
-		urls = append(urls, m.GetClientUrls()...)
+		if !m.IsLearner {
+			urls = append(urls, m.GetClientUrls()...)
+		}
 	}
 
 	sort.Strings(urls)
